@@ -22,6 +22,10 @@ class Product
     @quantity += 1
   end
   
+  def decrementQuantity
+    @quantity -= 1
+  end
+  
   # creates a hash from this product
   #  key is the product's name, value is the quantity
   def hash
