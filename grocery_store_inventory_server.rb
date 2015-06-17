@@ -11,5 +11,18 @@ products.addProduct(Product.new("milk", 54))
 products.addProduct(Product.new("eggs", 22))
 
 get '/api/inventory' do
+  status 200
   products.fullFormattedInventory
+end
+
+get '/api/inventory/:name' do
+  result = products.formattedStringForProductWithName(params['name'])
+  
+  if result == nil
+    status 404
+    ""
+  else
+    status 200
+    result
+  end
 end
