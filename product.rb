@@ -19,7 +19,7 @@ class Product
   end
   
   def incrementQuantity
-    @quantity = @quantity + 1
+    @quantity += 1
   end
   
   # creates a hash from this product

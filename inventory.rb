@@ -29,6 +29,10 @@ class Inventory
   # returns nil if the product isn't found
   def formattedStringForProductWithName(name)
     product = productWithName(name)
+    if product == nil
+	  return nil
+	end
+    
     arrayWithProduct = [product]
     
     return formattedProductStringFromArray(arrayWithProduct)
