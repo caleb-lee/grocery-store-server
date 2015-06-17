@@ -70,3 +70,19 @@ post '/api/inventory/:name' do
   
   return products.formattedStringForProductWithName(product.name)
 end
+
+delete '/api/inventory/:name' do
+  # find product with a certain name
+  product = products.productWithName(params['name'])
+  
+  if product == nil
+    status 404
+  else
+    if product.quantity == 0
+      status 404
+    else
+      product.setQuantity(0)
+      status 200
+    end
+  end
+end
