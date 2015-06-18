@@ -1,8 +1,11 @@
 require 'minitest/autorun'
+require 'rack/test'
+
 require './product'
 require './request_status'
 require './inventory'
 require './inventory_controller'
+require './grocery_store_inventory_server'
 
 class TestProduct < MiniTest::Test
   def setup
@@ -242,5 +245,143 @@ class TestInventoryController < Minitest::Test
     assert(!status.success)
     assert_equal(0, product.quantity)
     assert_equal("Product milk is not available.", status.error)
+  end
+end
+
+class TestGroceryStoreServer < Minitest::Test
+  include Rack::Test::Methods
+  
+  def app
+    Sinatra::Application
+  end
+  
+  def test_api_get_inventory
+    get '/api/inventory'
+	assert(last_response.ok?)
+	assert_equal("{\n  \"apples\": 123,\n  \"oranges\": 62,\n  \"milk\": 54,\n  \"eggs\": 22\n}", last_response.body)
+	assert_equal(200, last_response.status)
+  end
+  
+  def test_api_get_inventory_with_name_success
+    get '/api/inventory/apples'
+	assert(last_response.ok?)
+	assert_equal("{\n  \"apples\": 123\n}", last_response.body)
+	assert_equal(200, last_response.status)
+  end
+  
+  def test_api_get_inventory_with_name_wrong_name
+    get '/api/inventory/appless'
+	assert_equal("", last_response.body)
+	assert_equal(404, last_response.status)
+  end
+  
+  def test_api_post_inventory_increment_success
+    post '/api/inventory/apples'
+	assert(last_response.ok?)
+	assert_equal("{\n  \"apples\": 124\n}", last_response.body)
+	assert_equal(200, last_response.status)
+	
+	# set number back to normal
+	post '/api/inventory/apples', "{\n  \"quantity\": 123\n}"
+  end
+  
+  def test_api_post_inventory_change_success
+    post '/api/inventory/apples', "{\n  \"quantity\": 500\n}"
+	assert(last_response.ok?)
+	assert_equal("{\n  \"apples\": 500\n}", last_response.body)
+	assert_equal(200, last_response.status)
+	
+	# set number back to original
+	post '/api/inventory/apples', "{\n  \"quantity\": 123\n}"
+  end
+  
+  def test_api_post_inventory_change_from_zero
+    # setup
+    delete '/api/inventory/apples'
+    
+    post '/api/inventory/apples', "{\n  \"quantity\": 500\n}"
+	assert_equal("{\n  \"apples\": 500\n}", last_response.body)
+	assert_equal(201, last_response.status)
+	
+	# set number back to original
+	post '/api/inventory/apples', "{\n  \"quantity\": 123\n}"
+  end
+  
+  def test_api_post_inventory_increment_wrong_name
+    post '/api/inventory/appples'
+	assert_equal("{\n  \"error\": \"No product with the name appples exists\"\n}", last_response.body)
+	assert_equal(404, last_response.status)
+  end
+  
+  def test_api_post_inventory_negative_value
+    post '/api/inventory/apples', "{\n  \"quantity\": -500\n}"
+	assert_equal("{\n  \"error\": \"Quantity must be positive.\"\n}", last_response.body)
+	assert_equal(400, last_response.status)
+  end
+  
+  def test_api_delete_inventory
+    delete '/api/inventory/milk'
+    assert_equal(200, last_response.status)
+    
+    delete '/api/inventory/milk'
+    assert_equal(404, last_response.status)
+    
+    # set number back to original
+	post '/api/inventory/milk', "{\n  \"quantity\": 54\n}"
+  end
+  
+  def test_api_purchase_success_purchase_one
+    post '/api/purchase/oranges'
+    
+    assert(last_response.ok?)
+	assert_equal("{\n  \"oranges\": 61\n}", last_response.body)
+	assert_equal(200, last_response.status)
+	
+	# increment oranges to restore
+	post '/api/inventory/oranges'
+  end
+  
+  def test_api_purchase_success_purchase_multiple
+    post '/api/purchase/oranges',  "{\n  \"quantity\": 54\n}"
+    
+    assert(last_response.ok?)
+	assert_equal("{\n  \"oranges\": 8\n}", last_response.body)
+	assert_equal(200, last_response.status)
+	
+	# set number back to original
+	post '/api/inventory/oranges',  "{\n  \"quantity\": 62\n}"
+  end
+  
+  def test_api_purchase_failure_negative_quantity
+    post '/api/purchase/oranges',  "{\n  \"quantity\": -54\n}"
+    
+	assert_equal("{\n  \"error\": \"Cannot purchase less than one of something.\"\n}", last_response.body)
+	assert_equal(400, last_response.status)
+  end
+  
+  def test_api_purchase_failure_no_stock
+    delete '/api/inventory/oranges'
+  
+    post '/api/purchase/oranges'
+    
+	assert_equal("{\n  \"error\": \"Product oranges is not available.\"\n}", last_response.body)
+	assert_equal(404, last_response.status)
+	
+	# set number back to original
+	post '/api/inventory/oranges',  "{\n  \"quantity\": 62\n}"
+  end
+  
+  def test_api_purchase_failure_too_little_stock
+    post '/api/purchase/oranges', "{\n  \"quantity\": 100\n}"
+    
+	assert_equal("{\n  \"error\": \"Not enough stock to make purchase.\"\n}", last_response.body)
+	assert_equal(400, last_response.status)
+  end
+  
+  def test_api_purchase_failure_name_wrong
+    post '/api/purchase/orangges', "{\n  \"quantity\": 100\n}"
+    
+	assert_equal("{\n  \"error\": \"No product with the name orangges exists.\"\n}", last_response.body)
+	assert_equal(404, last_response.status)
   end
 end
