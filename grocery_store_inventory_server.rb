@@ -91,6 +91,25 @@ post '/api/purchase/:product' do
   end
 end
 
+post '/api/purchase' do
+  order = getJSONData
+  
+  if order == nil
+  	reqStatus = getInvalidJSONRequestStatus
+  	status reqStatus.statusCode
+  	return reqStatus.errorJSON
+  end
+  
+  reqStatus = productsController.purchaseProductsFromHash(order)
+  status reqStatus.statusCode
+  
+  if reqStatus.success
+    return products.formattedStringForProductsWithNames(order.keys)
+  else
+    return reqStatus.errorJSON
+  end
+end
+
 # returns a hash with the JSON data or nil
 def getJSONData
   data = nil

@@ -35,7 +35,7 @@ class InventoryController
   
   def zeroStockForProductWithName(name)
   	# find product with a certain name
-      product = @inventory.productWithName(name)
+    product = @inventory.productWithName(name)
     
     # if the product doesn't exist, end here
     if product == nil
@@ -55,6 +55,55 @@ class InventoryController
   # performs a purchase of a quantity of the product with a particular name
   # returns a RequestStatus object showing success or lack of
   def purchaseProductWithName(name, quantity)
+    # get the product
+    product = @inventory.productWithName(name)
+    
+    # see if okay to purchase
+    status = purchaseValid(name, quantity)
+    
+    # perform purchase if no problems with it
+    if status == nil
+      performPurchase(product, quantity)
+      status = RequestStatus.new(true, nil, 200)
+    end  
+      
+    return status
+  end
+  
+  def purchaseProductsFromHash(order)
+    productNames = order.keys
+    products = Array.new
+    
+    # check for out of stock products
+    status = checkForOutOfStockProducts(order)
+    if status != nil
+      return status
+    end
+    
+    # check for any other things that could make purchases invalid
+    for productName in productNames
+      status = purchaseValid(productName, order[productName])
+      
+      if status != nil
+        return status
+      end
+      
+      products.push(@inventory.productWithName(productName))
+    end
+    
+    # all purchases are valid, perform the purchases
+    for product in products
+      performPurchase(product, order[product.name])
+    end
+    
+    status = RequestStatus.new(true, nil, 200)
+    return status
+  end
+  
+  private
+  # returns nil if valid
+  # returns a RequestStatus if not
+  def purchaseValid(name, quantity)
     if quantity < 1
       status = RequestStatus.new(false, "Cannot purchase less than one of something.", 400)
       return status
@@ -65,7 +114,7 @@ class InventoryController
     
     # if no such product exists
     if product == nil
-      status = RequestStatus.new(false, "No product with the name #{name} exists.", 404)
+      status = RequestStatus.new(false, "No product with the name #{name} exists.", 400)
       return status
     end
     
@@ -79,12 +128,43 @@ class InventoryController
       return status
     end
     
-    performPurchase(product, quantity)
-    status = RequestStatus.new(true, nil, 200)
+    return nil
+  end
+  
+  def buildRequestStatusForOutOfStockProducts(names)
+    error = "The following items are not available: #{names[0]}"
+    
+    index = 1
+    while index < names.count do
+      error = error + ", #{names[index]}"
+      index += 1
+    end
+    
+    status = RequestStatus.new(false, error, 404)
+    
     return status
   end
   
-  private
+  # checks a hash for out of stock products
+  # and returns a request status if there are any
+  # returns nil if nothing out of stock or if a product doesn't exist
+  def checkForOutOfStockProducts(order)
+    array = Array.new
+    
+    for productName in order.keys
+      product = @inventory.productWithName(productName)
+      
+      if product == nil
+        return nil
+      end
+      
+      if product.quantity == 0
+        array.push(productName)
+      end
+    end
+    
+    return array.count > 0 ? buildRequestStatusForOutOfStockProducts(array) : nil
+  end
   
   def performPurchase(product, quantity)
     product.setQuantity(product.quantity - quantity)

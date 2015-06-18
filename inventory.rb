@@ -38,6 +38,24 @@ class Inventory
     return formattedProductStringFromArray(arrayWithProduct)
   end
   
+  # finds multiple products and formats them into a JSON string
+  # returns nil if any product isn't found
+  def formattedStringForProductsWithNames(namesArray)
+    arrayWithProducts = Array.new
+    
+    for name in namesArray
+      product = productWithName(name)
+      
+      if name == nil
+      	return nil
+      else
+        arrayWithProducts.push(product)
+      end
+    end
+  
+    return formattedProductStringFromArray(arrayWithProducts)
+  end
+  
   def addProduct(product)
     @products[@products.count] = product
   end
