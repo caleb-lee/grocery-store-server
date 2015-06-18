@@ -319,6 +319,13 @@ class TestGroceryStoreServer < Minitest::Test
 	assert_equal(400, last_response.status)
   end
   
+  def test_api_post_inventory_empty_json
+    post '/api/inventory/oranges', "{}"
+    
+    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+    assert_equal(400, last_response.status)
+  end
+  
   def test_api_delete_inventory
     delete '/api/inventory/milk'
     assert_equal(200, last_response.status)
@@ -383,5 +390,12 @@ class TestGroceryStoreServer < Minitest::Test
     
 	assert_equal("{\n  \"error\": \"No product with the name orangges exists.\"\n}", last_response.body)
 	assert_equal(404, last_response.status)
+  end
+  
+  def test_api_purchase_empty_json
+    post '/api/purchase/oranges', "{}"
+    
+    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+    assert_equal(400, last_response.status)
   end
 end
