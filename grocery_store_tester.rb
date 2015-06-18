@@ -1,6 +1,7 @@
 require 'minitest/autorun'
 require './product'
 require './request_status'
+require './inventory'
 
 class TestProduct < MiniTest::Test
   def setup
@@ -64,5 +65,52 @@ class TestRequestStatus < Minitest::Test
   
   def test_errorJSON
     assert_equal("{\n  \"error\": \"error\"\n}", @failure.errorJSON, "JSON generated incorrectly")
+  end
+end
+
+class TestInventory < Minitest::Test
+  def setup
+    # set up an Inventory to do work on
+    @inventory = Inventory.new
+    @inventory.addProduct(Product.new("apples", 123))
+    @inventory.addProduct(Product.new("oranges", 62))
+    @inventory.addProduct(Product.new("milk", 54))
+    @inventory.addProduct(Product.new("eggs", 22))
+  end
+  
+  def test_fullInventory
+    full = @inventory.fullInventory
+    
+    assert(full != nil, "fullInventory returns nil value")
+    assert(full.count == 4, "fullInventory doesn't contain the correct number of values")
+    assert(full[0].name == "apples", "fullInventory doesn't contain the correct product")
+  end
+  
+  def test_fullFormattedInventory
+    formattedInventory = @inventory.fullFormattedInventory
+    
+    expectedFormattedInventory = "{\n  \"apples\": 123,\n  \"oranges\": 62,\n  \"milk\": 54,\n  \"eggs\": 22\n}"
+    
+    assert_equal(expectedFormattedInventory, formattedInventory, "Inventory not being formatted correctly")
+  end
+  
+  def test_productWithNameWhenProductExists
+    product = @inventory.productWithName("eggs")
+    
+    assert(product != nil, "product should not be nil")
+    assert_equal("eggs", product.name, "product name is incorrect (pulled wrong)")
+  end
+  
+  def test_productWithNameWhenProductDoesntExist
+    product = @inventory.productWithName("egggs")
+    
+    assert(product == nil, "product should be nil")
+  end
+  
+  def test_formattedStringForProductWithNameProductExists
+    expectedString = "{\n  \"oranges\": 62\n}"
+    actualString = @inventory.formattedStringForProductWithName("oranges")
+    
+    assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
   end
 end
