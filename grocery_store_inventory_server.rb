@@ -84,7 +84,11 @@ post '/api/purchase/:product' do
   end
   
   status requestStatus.statusCode
-  return requestStatus.errorJSON # returns nil if successful
+  if requestStatus.success
+  	return products.formattedStringForProductWithName(productName)
+  else
+  	return requestStatus.errorJSON
+  end
 end
 
 # returns a hash with the JSON data or nil
