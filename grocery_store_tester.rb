@@ -117,6 +117,19 @@ class TestInventory < Minitest::Test
     
     assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
   end
+  
+  def test_formattedStringForProductsWithNames_success
+    expectedString = "{\n  \"oranges\": 62,\n  \"milk\": 54\n}"
+    actualString = @inventory.formattedStringForProductsWithNames(["oranges", "milk"])
+    
+    assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
+  end
+  
+  def test_formattedStringForProductsWithNames_failure
+    actualString = @inventory.formattedStringForProductsWithNames(["oranges", "milkk"])
+    
+    assert(actualString == nil, "When a product in a names array doesn't exist, get back a nil formatted string.")
+  end
 end
 
 class TestInventoryController < Minitest::Test
