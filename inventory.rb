@@ -46,7 +46,7 @@ class Inventory
     for name in namesArray
       product = productWithName(name)
       
-      if name == nil
+      if product == nil
       	return nil
       else
         arrayWithProducts.push(product)
