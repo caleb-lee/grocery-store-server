@@ -2,6 +2,7 @@ require 'minitest/autorun'
 require './product'
 require './request_status'
 require './inventory'
+require './inventory_controller'
 
 class TestProduct < MiniTest::Test
   def setup
@@ -112,5 +113,134 @@ class TestInventory < Minitest::Test
     actualString = @inventory.formattedStringForProductWithName("oranges")
     
     assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
+  end
+end
+
+class TestInventoryController < Minitest::Test
+  def setup
+    # set up an Inventory to do work on
+    @inventory = Inventory.new
+    @inventory.addProduct(Product.new("apples", 123))
+    @inventory.addProduct(Product.new("oranges", 62))
+    @inventory.addProduct(Product.new("milk", 54))
+    @inventory.addProduct(Product.new("eggs", 22))
+    @inventory.addProduct(Product.new("tofu", 50))
+    
+    # set up inventory controller with the inventory
+    @ic = InventoryController.new(@inventory)
+  end
+  
+  def test_updateInventoryForProductWithNameIncrement
+    status = @ic.updateInventoryForProductWithName("apples")
+    
+    product = @inventory.productWithName("apples")
+    
+    assert_equal(124, product.quantity)
+    assert(status.statusCode == 200)
+    assert(status.success)
+  end
+  
+  def test_updateInventoryForProductWithNameSpecifiedQuantity
+    status = @ic.updateInventoryForProductWithName("oranges", 573)
+    
+    product = @inventory.productWithName("oranges")
+    
+    assert_equal(573, product.quantity)
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+  end
+  
+  def test_updateInventoryForProductWithNameThatDoesntExist
+    status = @ic.updateInventoryForProductWithName("orangeas", 573)
+    
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+    assert(status.error == "No product with the name orangeas exists")
+  end
+  
+  def test_updateInventoryForProductWithNegativeQuantity
+    status = @ic.updateInventoryForProductWithName("oranges", -573)
+    
+    assert_equal(400, status.statusCode)
+    assert(!status.success)
+    assert(status.error == "Quantity must be positive.")
+  end
+  
+  def test_updateInventoryForProductWithNoStock
+    # setup
+    @ic.zeroStockForProductWithName("eggs")
+  	
+    status = @ic.updateInventoryForProductWithName("eggs", 20)
+    product = @inventory.productWithName("eggs")
+    
+    assert_equal(201, status.statusCode)
+    assert(status.success)
+    assert(product.quantity == 20)
+  end
+  
+  def test_zeroStockForProductWithName
+    status = @ic.zeroStockForProductWithName("tofu")
+    product = @inventory.productWithName("tofu")
+    
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+    assert(product.quantity == 0)
+    
+    status = @ic.zeroStockForProductWithName("tofu")
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+    assert(product.quantity == 0)
+  end
+  
+  def test_purchaseProductWithNameWhenBuyWillBeSuccessful
+    status = @ic.purchaseProductWithName("milk", 2)
+    product = @inventory.productWithName("milk")
+    
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+    assert_equal(52, product.quantity)
+  end
+  
+  def test_purchaseProductWithNameWhenQuantityIsTooLarge
+    product = @inventory.productWithName("milk")
+    originalStock = product.quantity
+    status = @ic.purchaseProductWithName("milk", 100)
+    
+    assert_equal(400, status.statusCode)
+    assert(!status.success)
+    assert_equal(originalStock, product.quantity)
+    assert_equal("Not enough stock to make purchase.", status.error)
+  end
+  
+  def test_purchaseProductWithNameWhenQuantityNegative
+    product = @inventory.productWithName("milk")
+    originalStock = product.quantity
+    status = @ic.purchaseProductWithName("milk", -20)
+    
+    assert_equal(400, status.statusCode)
+    assert(!status.success)
+    assert_equal(originalStock, product.quantity)
+    assert_equal("Cannot purchase less than one of something.", status.error)
+  end
+  
+  def test_purchaseProductWithNameWrongName
+    status = @ic.purchaseProductWithName("milkk", 30)
+    
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+    assert_equal("No product with the name milkk exists.", status.error)
+  end
+  
+  def test_purchaseProductWithNameWhenNoStock
+    #setup
+    @ic.zeroStockForProductWithName("milk")
+  
+    product = @inventory.productWithName("milk")
+    status = @ic.purchaseProductWithName("milk", 1)
+    
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+    assert_equal(0, product.quantity)
+    assert_equal("Product milk is not available.", status.error)
   end
 end
