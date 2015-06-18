@@ -229,7 +229,7 @@ class TestInventoryController < Minitest::Test
   def test_purchaseProductWithNameWrongName
     status = @ic.purchaseProductWithName("milkk", 30)
     
-    assert_equal(404, status.statusCode)
+    assert_equal(400, status.statusCode)
     assert(!status.success)
     assert_equal("No product with the name milkk exists.", status.error)
   end
@@ -389,7 +389,7 @@ class TestGroceryStoreServer < Minitest::Test
     post '/api/purchase/orangges', "{\n  \"quantity\": 100\n}"
     
 	assert_equal("{\n  \"error\": \"No product with the name orangges exists.\"\n}", last_response.body)
-	assert_equal(404, last_response.status)
+	assert_equal(400, last_response.status)
   end
   
   def test_api_purchase_empty_json
@@ -398,4 +398,70 @@ class TestGroceryStoreServer < Minitest::Test
     assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
     assert_equal(400, last_response.status)
   end
+  
+  def test_api_purchase_multiple_success
+    post '/api/purchase', "{\n  \"apples\": 3,\n  \"milk\": 1\n}"
+    
+    assert_equal("{\n  \"apples\": 120,\n  \"milk\": 53\n}", last_response.body)
+    assert_equal(200, last_response.status)
+    
+    # reset
+    post '/api/inventory/apples',  "{\n  \"quantity\": 123\n}"
+    post '/api/inventory/milk',  "{\n  \"quantity\": 54\n}"
+  end
+  
+  def test_api_purchase_multiple_failure_no_body
+    post '/api/purchase'
+    
+    assert_equal(400, last_response.status)
+    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+  end
+  
+  def test_api_purchase_multiple_failure_not_enough_stock
+    post '/api/purchase', "{\n  \"apples\": 500,\n  \"milk\": 1\n}"
+    
+    assert_equal(400, last_response.status)
+    assert_equal("{\n  \"error\": \"Not enough stock to make purchase.\"\n}", last_response.body)
+  end
+ 
+  def test_api_purchase_multiple_failure_invalid_name
+    post '/api/purchase', "{\n  \"appples\": 3,\n  \"milk\": 1\n}"
+    
+    assert_equal(400, last_response.status)
+    assert_equal("{\n  \"error\": \"No product with the name appples exists.\"\n}", last_response.body)
+  end
+   
+  def test_api_purchase_multiple_failure_negative_quantity
+    post '/api/purchase', "{\n  \"apples\": -3,\n  \"milk\": 1\n}"
+    
+    assert_equal(400, last_response.status)
+    assert_equal("{\n  \"error\": \"Cannot purchase less than one of something.\"\n}", last_response.body)
+  end
+
+  def test_api_purchase_multiple_failure_item_out_of_stock
+    delete '/api/inventory/apples'
+  
+    post '/api/purchase', "{\n  \"apples\": 34,\n  \"milk\": 1\n}"
+    
+    assert_equal(404, last_response.status)
+    assert_equal("{\n  \"error\": \"The following items are not available: apples\"\n}", last_response.body)
+    
+    # reset
+    post '/api/inventory/apples',  "{\n  \"quantity\": 123\n}"
+  end
+  
+  def test_api_purchase_multiple_failure_items_out_of_stock
+    delete '/api/inventory/apples'
+    delete '/api/inventory/milk'
+  
+    post '/api/purchase', "{\n  \"apples\": 34,\n  \"milk\": 1\n}"
+    
+    assert_equal(404, last_response.status)
+    assert_equal("{\n  \"error\": \"The following items are not available: apples, milk\"\n}", last_response.body)
+    
+    # reset
+    post '/api/inventory/apples',  "{\n  \"quantity\": 123\n}"
+    post '/api/inventory/milk',  "{\n  \"quantity\": 54\n}"
+  end
 end
+
