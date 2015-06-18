@@ -44,7 +44,13 @@ post '/api/inventory/:name' do
   if jsonData == nil
     requestStatus = productsController.updateInventoryForProductWithName(productName, nil)
   else
-    requestStatus = productsController.updateInventoryForProductWithName(productName, jsonData['quantity'])
+    quantity = jsonData['quantity']
+    
+    if quantity == nil
+      requestStatus = getInvalidJSONRequestStatus
+    else
+      requestStatus = productsController.updateInventoryForProductWithName(productName, quantity)
+    end
   end
   
   status requestStatus.statusCode
@@ -69,7 +75,12 @@ post '/api/purchase/:product' do
     requestStatus = productsController.purchaseProductWithName(productName, 1)
   else
     quantityToPurchase = jsonData['quantity']
-    requestStatus = productsController.purchaseProductWithName(productName, quantityToPurchase)
+    
+    if quantityToPurchase == nil
+      requestStatus = getInvalidJSONRequestStatus
+    else  
+      requestStatus = productsController.purchaseProductWithName(productName, quantityToPurchase)
+    end
   end
   
   status requestStatus.statusCode
@@ -86,4 +97,9 @@ def getJSONData
   end
   
   return data
+end
+
+def getInvalidJSONRequestStatus
+  reqStatus = RequestStatus.new(false, "Invalid JSON.", 400)
+  return reqStatus
 end
