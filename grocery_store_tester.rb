@@ -38,25 +38,39 @@ class TestProduct < MiniTest::Test
     
     assert_equal(oldQuantity - 1, @product.quantity, "decrementQuantity doesn't work")
   end
+  
+  def test_hash
+    product = Product.new("tofu", 5)
+    assert_equal({"tofu" => 5}, product.hash)
+  end
 end
 
 class TestRequestStatus < Minitest::Test
   def setup
-    @success = RequestStatus.new(true, "error", 200)
-    @failure = RequestStatus.new(false, "error", 400)
-    @failureWithNoErrorMessage = RequestStatus.new(false, nil, 404)
+    @success = RequestStatus.new(true, { "apples" => 30 }, "error", 200)
+    @failure = RequestStatus.new(false, { "apples" => 30 }, "error", 400)
+    @failureWithNoErrorMessage = RequestStatus.new(false, nil, nil, 404)
   end
 
   def test_initialize_and_getters
-    status = RequestStatus.new(false, "error", 404)
+    status = RequestStatus.new(false, nil, "error", 404)
     
     assert_equal(false, status.success, "Initializer didn't set success boolean correctly")
     assert_equal("error", status.error, "Initializer didn't set error correctly")
+    assert_equal(nil, status.userInfo, "Initializer didn't set userInfo correctly")
     assert_equal(404, status.statusCode, "Initializer didn't set statusCode correctly")
   end
   
   def test_error_always_nil_when_successful
     assert_equal(nil, @success.error, "Error property should be set to nil when successful")
+  end
+  
+  def test_userInfo_always_nil_when_error
+    assert_equal(nil, @failure.userInfo, "UserInfo property should be set to nil when successful")
+  end
+  
+  def test_userInfo_correct
+    assert_equal({ "apples" => 30}, @success.userInfo)
   end
   
   def test_error_exists_when_fail_if_set
@@ -68,7 +82,11 @@ class TestRequestStatus < Minitest::Test
   end
   
   def test_errorJSON
-    assert_equal("{\n  \"error\": \"error\"\n}", @failure.errorJSON, "JSON generated incorrectly")
+    assert_equal("{\"error\":\"error\"}", @failure.errorJSON, "JSON generated incorrectly")
+  end
+  
+  def test_userInfoJSON
+    assert_equal("{\"apples\":30}", @success.userInfoJSON, "JSON generated incorrectly")
   end
 end
 
@@ -90,14 +108,6 @@ class TestInventory < Minitest::Test
     assert(full[0].name == "apples", "fullInventory doesn't contain the correct product")
   end
   
-  def test_fullFormattedInventory
-    formattedInventory = @inventory.fullFormattedInventory
-    
-    expectedFormattedInventory = "{\n  \"apples\": 123,\n  \"oranges\": 62,\n  \"milk\": 54,\n  \"eggs\": 22\n}"
-    
-    assert_equal(expectedFormattedInventory, formattedInventory, "Inventory not being formatted correctly")
-  end
-  
   def test_productWithNameWhenProductExists
     product = @inventory.productWithName("eggs")
     
@@ -111,24 +121,34 @@ class TestInventory < Minitest::Test
     assert(product == nil, "product should be nil")
   end
   
-  def test_formattedStringForProductWithNameProductExists
-    expectedString = "{\n  \"oranges\": 62\n}"
-    actualString = @inventory.formattedStringForProductWithName("oranges")
+  def test_full_product_hash
+    hash = @inventory.fullInventoryHash
     
-    assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
+    assert_equal({"apples" => 123, "oranges" => 62, "milk" => 54, "eggs" => 22}, hash)
   end
   
-  def test_formattedStringForProductsWithNames_success
-    expectedString = "{\n  \"oranges\": 62,\n  \"milk\": 54\n}"
-    actualString = @inventory.formattedStringForProductsWithNames(["oranges", "milk"])
+  def test_hash_product_with_name_success
+    hash = @inventory.productWithNameHash("apples")
     
-    assert_equal(expectedString, actualString, "Formatted JSON string for product differs from expected.")
+    assert_equal({"apples" => 123}, hash)
   end
   
-  def test_formattedStringForProductsWithNames_failure
-    actualString = @inventory.formattedStringForProductsWithNames(["oranges", "milkk"])
+  def test_hash_product_with_name_failure
+    hash = @inventory.productWithNameHash("applfes")
     
-    assert(actualString == nil, "When a product in a names array doesn't exist, get back a nil formatted string.")
+    assert_equal(nil, hash)
+  end
+  
+  def test_hash_products_with_names_success
+    hash = @inventory.productsWithNamesHash(["apples", "oranges"])
+    
+    assert_equal({"apples" => 123, "oranges" => 62}, hash)
+  end
+  
+  def test_hash_products_with_names_failure
+    hash = @inventory.productsWithNamesHash(["apples", "ordanges"])
+    
+    assert_equal(nil, hash)
   end
 end
 
@@ -152,6 +172,7 @@ class TestInventoryController < Minitest::Test
     product = @inventory.productWithName("apples")
     
     assert_equal(124, product.quantity)
+    assert_equal(124, status.userInfo[product.name])
     assert(status.statusCode == 200)
     assert(status.success)
   end
@@ -162,6 +183,7 @@ class TestInventoryController < Minitest::Test
     product = @inventory.productWithName("oranges")
     
     assert_equal(573, product.quantity)
+    assert_equal(573, status.userInfo[product.name])
     assert_equal(200, status.statusCode)
     assert(status.success)
   end
@@ -181,7 +203,7 @@ class TestInventoryController < Minitest::Test
     assert(!status.success)
     assert(status.error == "Quantity must be positive.")
   end
-  
+ 
   def test_updateInventoryForProductWithNoStock
     # setup
     @ic.zeroStockForProductWithName("eggs")
@@ -227,7 +249,7 @@ class TestInventoryController < Minitest::Test
     assert_equal(originalStock, product.quantity)
     assert_equal("Not enough stock to make purchase.", status.error)
   end
-  
+
   def test_purchaseProductWithNameWhenQuantityNegative
     product = @inventory.productWithName("milk")
     originalStock = product.quantity
@@ -246,7 +268,7 @@ class TestInventoryController < Minitest::Test
     assert(!status.success)
     assert_equal("No product with the name milkk exists.", status.error)
   end
-  
+      
   def test_purchaseProductWithNameWhenNoStock
     #setup
     @ic.zeroStockForProductWithName("milk")
@@ -259,6 +281,45 @@ class TestInventoryController < Minitest::Test
     assert_equal(0, product.quantity)
     assert_equal("Product milk is not available.", status.error)
   end
+  
+  def test_full_inventory_request
+    status = @ic.fullInventoryRequest
+    
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+    assert_equal({ "apples" => 123, "oranges" => 62, "milk" => 54, "eggs" => 22, "tofu" => 50 }, status.userInfo)
+  end
+  
+  def test_one_name_inventory_request_success
+    status = @ic.productWithNameRequest("apples")
+    
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+    assert_equal({ "apples" => 123 }, status.userInfo)
+  end
+  
+  def test_one_name_inventory_request_wrong_name
+    status = @ic.productWithNameRequest("appless")
+    
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+  end
+  
+  def test_multi_name_inventory_request_success
+    status = @ic.productsWithNamesRequest(["apples", "oranges"])
+    
+    assert_equal(200, status.statusCode)
+    assert(status.success)
+    assert_equal({ "apples" => 123, "oranges" => 62 }, status.userInfo)
+  end
+  
+  def test_multi_name_inventory_request_failure
+    status = @ic.productsWithNamesRequest(["appless", "oranges"])
+    
+    assert_equal(404, status.statusCode)
+    assert(!status.success)
+    assert_equal(nil, status.userInfo)
+  end
 end
 
 class TestGroceryStoreServer < Minitest::Test
@@ -270,38 +331,38 @@ class TestGroceryStoreServer < Minitest::Test
   
   def test_api_get_inventory
     get '/api/inventory'
-	assert(last_response.ok?)
-	assert_equal("{\n  \"apples\": 123,\n  \"oranges\": 62,\n  \"milk\": 54,\n  \"eggs\": 22\n}", last_response.body)
+	
+	assert_equal("{\"apples\":123,\"oranges\":62,\"milk\":54,\"eggs\":22}", last_response.body)
 	assert_equal(200, last_response.status)
   end
-  
+ 
   def test_api_get_inventory_with_name_success
     get '/api/inventory/apples'
-	assert(last_response.ok?)
-	assert_equal("{\n  \"apples\": 123\n}", last_response.body)
+    
+	assert_equal("{\"apples\":123}", last_response.body)
 	assert_equal(200, last_response.status)
   end
-  
+   
   def test_api_get_inventory_with_name_wrong_name
     get '/api/inventory/appless'
 	assert_equal("", last_response.body)
 	assert_equal(404, last_response.status)
   end
-  
+
   def test_api_post_inventory_increment_success
     post '/api/inventory/apples'
-	assert(last_response.ok?)
-	assert_equal("{\n  \"apples\": 124\n}", last_response.body)
+	
+	assert_equal("{\"apples\":124}", last_response.body)
 	assert_equal(200, last_response.status)
 	
 	# set number back to normal
 	post '/api/inventory/apples', "{\n  \"quantity\": 123\n}"
   end
-  
+ 
   def test_api_post_inventory_change_success
     post '/api/inventory/apples', "{\n  \"quantity\": 500\n}"
 	assert(last_response.ok?)
-	assert_equal("{\n  \"apples\": 500\n}", last_response.body)
+	assert_equal("{\"apples\":500}", last_response.body)
 	assert_equal(200, last_response.status)
 	
 	# set number back to original
@@ -313,7 +374,7 @@ class TestGroceryStoreServer < Minitest::Test
     delete '/api/inventory/apples'
     
     post '/api/inventory/apples', "{\n  \"quantity\": 500\n}"
-	assert_equal("{\n  \"apples\": 500\n}", last_response.body)
+	assert_equal("{\"apples\":500}", last_response.body)
 	assert_equal(201, last_response.status)
 	
 	# set number back to original
@@ -322,23 +383,23 @@ class TestGroceryStoreServer < Minitest::Test
   
   def test_api_post_inventory_increment_wrong_name
     post '/api/inventory/appples'
-	assert_equal("{\n  \"error\": \"No product with the name appples exists\"\n}", last_response.body)
+	assert_equal("{\"error\":\"No product with the name appples exists\"}", last_response.body)
 	assert_equal(404, last_response.status)
   end
   
   def test_api_post_inventory_negative_value
     post '/api/inventory/apples', "{\n  \"quantity\": -500\n}"
-	assert_equal("{\n  \"error\": \"Quantity must be positive.\"\n}", last_response.body)
+	assert_equal("{\"error\":\"Quantity must be positive.\"}", last_response.body)
 	assert_equal(400, last_response.status)
   end
   
   def test_api_post_inventory_empty_json
     post '/api/inventory/oranges', "{}"
     
-    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"Invalid JSON.\"}", last_response.body)
     assert_equal(400, last_response.status)
   end
-  
+   
   def test_api_delete_inventory
     delete '/api/inventory/milk'
     assert_equal(200, last_response.status)
@@ -349,12 +410,11 @@ class TestGroceryStoreServer < Minitest::Test
     # set number back to original
 	post '/api/inventory/milk', "{\n  \"quantity\": 54\n}"
   end
-  
+ 
   def test_api_purchase_success_purchase_one
     post '/api/purchase/oranges'
     
-    assert(last_response.ok?)
-	assert_equal("{\n  \"oranges\": 61\n}", last_response.body)
+	assert_equal("{\"oranges\":61}", last_response.body)
 	assert_equal(200, last_response.status)
 	
 	# increment oranges to restore
@@ -364,8 +424,7 @@ class TestGroceryStoreServer < Minitest::Test
   def test_api_purchase_success_purchase_multiple
     post '/api/purchase/oranges',  "{\n  \"quantity\": 54\n}"
     
-    assert(last_response.ok?)
-	assert_equal("{\n  \"oranges\": 8\n}", last_response.body)
+	assert_equal("{\"oranges\":8}", last_response.body)
 	assert_equal(200, last_response.status)
 	
 	# set number back to original
@@ -375,16 +434,16 @@ class TestGroceryStoreServer < Minitest::Test
   def test_api_purchase_failure_negative_quantity
     post '/api/purchase/oranges',  "{\n  \"quantity\": -54\n}"
     
-	assert_equal("{\n  \"error\": \"Cannot purchase less than one of something.\"\n}", last_response.body)
+	assert_equal("{\"error\":\"Cannot purchase less than one of something.\"}", last_response.body)
 	assert_equal(400, last_response.status)
   end
-  
+ 
   def test_api_purchase_failure_no_stock
     delete '/api/inventory/oranges'
   
     post '/api/purchase/oranges'
     
-	assert_equal("{\n  \"error\": \"Product oranges is not available.\"\n}", last_response.body)
+	assert_equal("{\"error\":\"Product oranges is not available.\"}", last_response.body)
 	assert_equal(404, last_response.status)
 	
 	# set number back to original
@@ -394,28 +453,28 @@ class TestGroceryStoreServer < Minitest::Test
   def test_api_purchase_failure_too_little_stock
     post '/api/purchase/oranges', "{\n  \"quantity\": 100\n}"
     
-	assert_equal("{\n  \"error\": \"Not enough stock to make purchase.\"\n}", last_response.body)
+	assert_equal("{\"error\":\"Not enough stock to make purchase.\"}", last_response.body)
 	assert_equal(400, last_response.status)
   end
   
   def test_api_purchase_failure_name_wrong
     post '/api/purchase/orangges', "{\n  \"quantity\": 100\n}"
     
-	assert_equal("{\n  \"error\": \"No product with the name orangges exists.\"\n}", last_response.body)
+	assert_equal("{\"error\":\"No product with the name orangges exists.\"}", last_response.body)
 	assert_equal(400, last_response.status)
   end
   
   def test_api_purchase_empty_json
     post '/api/purchase/oranges', "{}"
     
-    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"Invalid JSON.\"}", last_response.body)
     assert_equal(400, last_response.status)
   end
-  
+
   def test_api_purchase_multiple_success
     post '/api/purchase', "{\n  \"apples\": 3,\n  \"milk\": 1\n}"
     
-    assert_equal("{\n  \"apples\": 120,\n  \"milk\": 53\n}", last_response.body)
+    assert_equal("{\"apples\":120,\"milk\":53}", last_response.body)
     assert_equal(200, last_response.status)
     
     # reset
@@ -427,28 +486,28 @@ class TestGroceryStoreServer < Minitest::Test
     post '/api/purchase'
     
     assert_equal(400, last_response.status)
-    assert_equal("{\n  \"error\": \"Invalid JSON.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"Invalid JSON.\"}", last_response.body)
   end
   
   def test_api_purchase_multiple_failure_not_enough_stock
     post '/api/purchase', "{\n  \"apples\": 500,\n  \"milk\": 1\n}"
     
     assert_equal(400, last_response.status)
-    assert_equal("{\n  \"error\": \"Not enough stock to make purchase.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"Not enough stock to make purchase.\"}", last_response.body)
   end
  
   def test_api_purchase_multiple_failure_invalid_name
     post '/api/purchase', "{\n  \"appples\": 3,\n  \"milk\": 1\n}"
     
     assert_equal(400, last_response.status)
-    assert_equal("{\n  \"error\": \"No product with the name appples exists.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"No product with the name appples exists.\"}", last_response.body)
   end
    
   def test_api_purchase_multiple_failure_negative_quantity
     post '/api/purchase', "{\n  \"apples\": -3,\n  \"milk\": 1\n}"
     
     assert_equal(400, last_response.status)
-    assert_equal("{\n  \"error\": \"Cannot purchase less than one of something.\"\n}", last_response.body)
+    assert_equal("{\"error\":\"Cannot purchase less than one of something.\"}", last_response.body)
   end
 
   def test_api_purchase_multiple_failure_item_out_of_stock
@@ -457,7 +516,7 @@ class TestGroceryStoreServer < Minitest::Test
     post '/api/purchase', "{\n  \"apples\": 34,\n  \"milk\": 1\n}"
     
     assert_equal(404, last_response.status)
-    assert_equal("{\n  \"error\": \"The following items are not available: apples\"\n}", last_response.body)
+    assert_equal("{\"error\":\"The following items are not available: apples\"}", last_response.body)
     
     # reset
     post '/api/inventory/apples',  "{\n  \"quantity\": 123\n}"
@@ -470,7 +529,7 @@ class TestGroceryStoreServer < Minitest::Test
     post '/api/purchase', "{\n  \"apples\": 34,\n  \"milk\": 1\n}"
     
     assert_equal(404, last_response.status)
-    assert_equal("{\n  \"error\": \"The following items are not available: apples, milk\"\n}", last_response.body)
+    assert_equal("{\"error\":\"The following items are not available: apples, milk\"}", last_response.body)
     
     # reset
     post '/api/inventory/apples',  "{\n  \"quantity\": 123\n}"
