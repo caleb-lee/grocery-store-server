@@ -1,6 +1,10 @@
 class RequestStatus
-  def initialize(success, error, statusCode)
+  def initialize(success, userInfo, error, statusCode)
     @success = success
+    @userInfo = nil
+    if success
+      @userInfo = userInfo
+    end
     @error = nil
     if !success
       @error = error
@@ -20,11 +24,23 @@ class RequestStatus
     return @statusCode
   end
   
+  def userInfo
+    return @userInfo
+  end
+  
   def errorJSON
     if @error == nil
       return nil
-    else
-      return "{\n  \"error\": \"#{@error}\"\n}"
     end
+    
+    return { "error" => @error }.to_json
+  end
+  
+  def userInfoJSON
+    if @userInfo == nil
+      return nil
+    end
+    
+    return @userInfo.to_json
   end
 end
