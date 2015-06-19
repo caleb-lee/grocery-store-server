@@ -25,4 +25,8 @@ class Product
   def decrementQuantity
     @quantity -= 1
   end
+  
+  def hash
+  	{@name => @quantity}
+  end
 end

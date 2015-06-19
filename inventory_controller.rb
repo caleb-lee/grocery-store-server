@@ -6,6 +6,38 @@ class InventoryController
     @inventory = inventory
   end
   
+  # returns a RequestStatus with the full inventory contained in a hash
+  #  and HTTP status code
+  def fullInventoryRequest
+    userInfo = @inventory.fullInventoryHash
+    
+    status = RequestStatus.new(true, userInfo, nil, 200)
+    return status
+  end
+  
+  # finds the single product and makes a request containing its hash and an HTTP status code
+  # if not found, request containing a 404
+  def productWithNameRequest(name)
+    productHash = @inventory.productWithNameHash(name)
+    
+    if (productHash == nil)
+      return RequestStatus.new(false, nil, nil, 404)
+    end
+    
+    return RequestStatus.new(true, productHash, nil, 200)
+  end
+  
+  # finds multiple products and makes a request containing their hash and HTTP status code
+  def productsWithNamesRequest(namesArray)
+    hash = @inventory.productsWithNamesHash(namesArray)
+    
+    if hash == nil
+      return RequestStatus.new(false, nil, nil, 404)
+    end
+    
+    return RequestStatus.new(true, hash, nil, 200)
+  end
+  
   # updates the inventory for the product with a particular name
   # returns a RequestStatus object showing success or lack of success
   # if no quantity is passed in, the product quantity gets incremented
@@ -15,7 +47,7 @@ class InventoryController
     
     # if the product doesn't exist, end here
     if product == nil
-      status = RequestStatus.new(false, "No product with the name #{name} exists", 404)
+      status = RequestStatus.new(false, nil, "No product with the name #{name} exists", 404)
       return status
     end
     
@@ -26,7 +58,7 @@ class InventoryController
     
     # invalid inventory update if quantity is less than 1
     if quantity < 1
-      status = RequestStatus.new(false, "Quantity must be positive.", 400)
+      status = RequestStatus.new(false, nil, "Quantity must be positive.", 400)
       return status
     end
     
@@ -39,13 +71,13 @@ class InventoryController
     
     # if the product doesn't exist, end here
     if product == nil
-      status = RequestStatus.new(false, nil, 404)
+      status = RequestStatus.new(false, nil, nil, 404)
       return status
     end
     
     # if the product already doesn't have stock, end
     if product.quantity == 0
-      status = RequestStatus.new(false, nil, 404)
+      status = RequestStatus.new(false, nil, nil, 404)
       return status
     end
     
@@ -64,7 +96,7 @@ class InventoryController
     # perform purchase if no problems with it
     if status == nil
       performPurchase(product, quantity)
-      status = RequestStatus.new(true, nil, 200)
+      status = RequestStatus.new(true, product.hash, nil, 200)
     end  
       
     return status
@@ -81,6 +113,8 @@ class InventoryController
     end
     
     # check for any other things that could make purchases invalid
+    #	don't purchase in this loop because if the purchase fails
+    #	you have a bunch of products that shouldn't be purchased
     for productName in productNames
       status = purchaseValid(productName, order[productName])
       
@@ -96,7 +130,7 @@ class InventoryController
       performPurchase(product, order[product.name])
     end
     
-    status = RequestStatus.new(true, nil, 200)
+    status = RequestStatus.new(true, @inventory.productsWithNamesHash(productNames), nil, 200)
     return status
   end
   
@@ -105,7 +139,7 @@ class InventoryController
   # returns a RequestStatus if not
   def purchaseValid(name, quantity)
     if quantity < 1
-      status = RequestStatus.new(false, "Cannot purchase less than one of something.", 400)
+      status = RequestStatus.new(false, nil, "Cannot purchase less than one of something.", 400)
       return status
     end
     
@@ -114,17 +148,17 @@ class InventoryController
     
     # if no such product exists
     if product == nil
-      status = RequestStatus.new(false, "No product with the name #{name} exists.", 400)
+      status = RequestStatus.new(false, nil, "No product with the name #{name} exists.", 400)
       return status
     end
     
     if product.quantity == 0
-      status = RequestStatus.new(false, "Product #{name} is not available.", 404)
+      status = RequestStatus.new(false, nil, "Product #{name} is not available.", 404)
       return status
     end
     
     if product.quantity - quantity < 0
-      status = RequestStatus.new(false, "Not enough stock to make purchase.", 400)
+      status = RequestStatus.new(false, nil, "Not enough stock to make purchase.", 400)
       return status
     end
     
@@ -140,7 +174,7 @@ class InventoryController
       index += 1
     end
     
-    status = RequestStatus.new(false, error, 404)
+    status = RequestStatus.new(false, nil, error, 404)
     
     return status
   end
@@ -177,7 +211,7 @@ class InventoryController
     
     # update quantity
     product.setQuantity(quantity)
-    status = RequestStatus.new(true, nil, statusCode)
+    status = RequestStatus.new(true, product.hash, nil, statusCode)
     
     return status
   end

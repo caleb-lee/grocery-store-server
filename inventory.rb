@@ -1,4 +1,5 @@
 require './product.rb'
+require './request_status'
 
 class Inventory
   def initialize
@@ -9,9 +10,15 @@ class Inventory
     return @products
   end
   
-  # formats the inventory into a json string for a server response
-  def fullFormattedInventory
-    formattedProductStringFromArray(@products)
+  # get product hash
+  def fullInventoryHash
+    inventory = Hash.new
+    
+    for product in fullInventory
+      inventory[product.name] = product.quantity
+    end
+    
+    return inventory
   end
   
   # returns nil if there isn't a product with that name
@@ -25,23 +32,21 @@ class Inventory
     return nil
   end
   
-  # finds the single product and formats it into a JSON string
+  # finds the single product and makes a hash of it
   # returns nil if the product isn't found
-  def formattedStringForProductWithName(name)
+  def productWithNameHash(name)
     product = productWithName(name)
     if product == nil
 	  return nil
 	end
     
-    arrayWithProduct = [product]
-    
-    return formattedProductStringFromArray(arrayWithProduct)
+    return product.hash
   end
   
-  # finds multiple products and formats them into a JSON string
+  # finds multiple products and makes them into a hash
   # returns nil if any product isn't found
-  def formattedStringForProductsWithNames(namesArray)
-    arrayWithProducts = Array.new
+  def productsWithNamesHash(namesArray)
+    hash = Hash.new
     
     for name in namesArray
       product = productWithName(name)
@@ -49,38 +54,14 @@ class Inventory
       if product == nil
       	return nil
       else
-        arrayWithProducts.push(product)
+        hash[product.name] = product.quantity
       end
     end
   
-    return formattedProductStringFromArray(arrayWithProducts)
+    return hash
   end
   
   def addProduct(product)
-    @products[@products.count] = product
-  end
-  
-  private 
-  
-  # helper method to keep all the string formatting code in one place
-  def formattedProductStringFromArray(arrayOfProducts)
-    result = "{\n"
-	
-	index = 0
-	for product in arrayOfProducts
-	  result = result + "  \"#{product.name}\": #{product.quantity}"
-	  
-	  # don't add the comma on the last line
-	  index += 1
-	  if arrayOfProducts.count == index
-	    result = result + "\n"
-	  else
-	    result = result + ",\n"
-	  end
-	end
-	
-	result = result + "}"
-	
-    return result
+    @products.push(product)
   end
 end

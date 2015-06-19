@@ -17,19 +17,15 @@ products.addProduct(Product.new("eggs", 22))
 productsController = InventoryController.new(products)
 
 get '/api/inventory' do
-  status 200
-  products.fullFormattedInventory
+  result = productsController.fullInventoryRequest
+  
+  serve(result)
 end
 
 get '/api/inventory/:name' do
-  result = products.formattedStringForProductWithName(params['name'])
+  result = productsController.productWithNameRequest(params['name'])
   
-  if result == nil
-    status 404
-  else
-    status 200
-    result
-  end
+  serve(result)
 end
 
 post '/api/inventory/:name' do
@@ -53,17 +49,12 @@ post '/api/inventory/:name' do
     end
   end
   
-  status requestStatus.statusCode
-  if requestStatus.success
-  	return products.formattedStringForProductWithName(productName)
-  else
-  	return requestStatus.errorJSON
-  end
+  serve(requestStatus)
 end
 
 delete '/api/inventory/:name' do
   requestStatus = productsController.zeroStockForProductWithName(params['name'])
-  status requestStatus.statusCode
+  serve(requestStatus)
 end
 
 post '/api/purchase/:product' do
@@ -71,7 +62,7 @@ post '/api/purchase/:product' do
   jsonData = getJSONData
   requestStatus = nil
   
-  if jsonData == nil # no body
+  if jsonData.nil? # no body
     requestStatus = productsController.purchaseProductWithName(productName, 1)
   else
     quantityToPurchase = jsonData['quantity']
@@ -83,12 +74,7 @@ post '/api/purchase/:product' do
     end
   end
   
-  status requestStatus.statusCode
-  if requestStatus.success
-  	return products.formattedStringForProductWithName(productName)
-  else
-  	return requestStatus.errorJSON
-  end
+  serve(requestStatus)
 end
 
 post '/api/purchase' do
@@ -96,33 +82,39 @@ post '/api/purchase' do
   
   if order == nil
   	reqStatus = getInvalidJSONRequestStatus
-  	status reqStatus.statusCode
-  	return reqStatus.errorJSON
+  	return serve(reqStatus)
   end
   
   reqStatus = productsController.purchaseProductsFromHash(order)
-  status reqStatus.statusCode
+  return serve(reqStatus)
+end
+
+# takes a request status object and turns it into the correct server output
+def serve(requestStatus)
+  content_type :json
+  status requestStatus.statusCode
   
-  if reqStatus.success
-    return products.formattedStringForProductsWithNames(order.keys)
-  else
-    return reqStatus.errorJSON
+  if !requestStatus.success
+    return requestStatus.errorJSON
   end
+  
+  return requestStatus.userInfoJSON
 end
 
 # returns a hash with the JSON data or nil
 def getJSONData
   data = nil
 
-  if request.body.read != ""
-    request.body.rewind # required since we read it once already
+  begin
     data = JSON.parse request.body.read
-  end
+  rescue JSON::ParserError => e 
+    return nil
+  end 
   
   return data
 end
 
 def getInvalidJSONRequestStatus
-  reqStatus = RequestStatus.new(false, "Invalid JSON.", 400)
+  reqStatus = RequestStatus.new(false, nil, "Invalid JSON.", 400)
   return reqStatus
 end
