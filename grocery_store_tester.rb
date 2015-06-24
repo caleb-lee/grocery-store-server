@@ -221,6 +221,7 @@ class TestInventoryController < Minitest::Test
     product = @inventory.productWithName("tofu")
     
     assert_equal(200, status.statusCode)
+    assert(status.userInfo == nil)
     assert(status.success)
     assert(product.quantity == 0)
     
@@ -403,6 +404,7 @@ class TestGroceryStoreServer < Minitest::Test
   def test_api_delete_inventory
     delete '/api/inventory/milk'
     assert_equal(200, last_response.status)
+    assert_equal("", last_response.body)
     
     delete '/api/inventory/milk'
     assert_equal(404, last_response.status)
