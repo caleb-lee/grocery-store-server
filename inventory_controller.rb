@@ -81,7 +81,10 @@ class InventoryController
       return status
     end
     
-    return updateInventoryForProduct(product, 0)
+    status = updateInventoryForProduct(product, 0)
+    # strip userInfo from the RequestStatus object because the server isn't supposed
+    #   to return anything
+    return RequestStatus.new(status.success, nil, status.error, status.statusCode)
   end
   
   # performs a purchase of a quantity of the product with a particular name
